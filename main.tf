@@ -1,25 +1,4 @@
-# //////////////////////////////
-# VARIABLES
-# //////////////////////////////
-variable "aws_access_key" {}
 
-variable "aws_secret_key" {}
-
-variable "ssh_key_name" {}
-
-variable "private_key_path" {}
-
-variable "region" {
-  default = "us-east-1"
-}
-
-variable "vpc_cidr" {
-  default = "172.16.0.0/16"
-}
-
-variable "subnet1_cidr" {
-  default = "172.16.0.0/24"
-}
 
 # //////////////////////////////
 # PROVIDERS
@@ -35,79 +14,50 @@ provider "aws" {
 # //////////////////////////////
 
 # VPC
-resource "aws_vpc" "vpc1" {
+resource "aws_vpc" "terraform_vpc" {
   cidr_block = var.vpc_cidr
   enable_dns_hostnames = "true"
 }
 
 # SUBNET
-resource "aws_subnet" "subnet1" {
+resource "aws_subnet" "terraform_subnet" {
   cidr_block = var.subnet1_cidr
-  vpc_id = aws_vpc.vpc1.id
+  vpc_id = aws_vpc.terraform_vpc.id
   map_public_ip_on_launch = "true"
   availability_zone = data.aws_availability_zones.available.names[1]
 }
 
 # INTERNET_GATEWAY
-resource "aws_internet_gateway" "gateway1" {
-  vpc_id = aws_vpc.vpc1.id
+resource "aws_internet_gateway" "terraform_gateway" {
+  vpc_id = aws_vpc.terraform_vpc.id
 }
 
 # ROUTE_TABLE
-resource "aws_route_table" "route_table1" {
-  vpc_id = aws_vpc.vpc1.id
+resource "aws_route_table" "terraform_route_table" {
+  vpc_id = aws_vpc.terraform_vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.gateway1.id
+    gateway_id = aws_internet_gateway.terraform_gateway.id
   }
 }
 
-resource "aws_route_table_association" "route-subnet1" {
-  subnet_id = aws_subnet.subnet1.id
-  route_table_id = aws_route_table.route_table1.id
+resource "aws_route_table_association" "terraform_route-subnet" {
+  subnet_id = aws_subnet.terraform_subnet.id
+  route_table_id = aws_route_table.terraform_route_table.id
 }
 
-# SECURITY_GROUP
-resource "aws_security_group" "sg-nodejs-instance" {
-  name = "nodejs_sg"
-  vpc_id = aws_vpc.vpc1.id
 
-  ingress {
-    from_port = 80
-    to_port = 80
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port = 443
-    to_port = 443
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port = 22
-    to_port = 22
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
-  egress {
-    from_port = 0
-    to_port = 0
-    protocol = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
 
 # INSTANCE
-resource "aws_instance" "nodejs1" {
-  ami = data.aws_ami.aws-linux.id
-  instance_type = "t2.micro"
-  subnet_id = aws_subnet.subnet1.id
-  vpc_security_group_ids = [aws_security_group.sg-nodejs-instance.id]
+resource "aws_instance" "terraform_instance" {
+  count                  = 3
+
+  ami                    = data.aws_ami.aws-linux.id
+  instance_type          = "t2.micro"
+  subnet_id              = aws_subnet.terraform_subnet.id
+  vpc_security_group_ids = [aws_security_group.terraform-security-instance.id]
+  tags                   = {Environment = var.environment_list[count.index]}
   key_name               = var.ssh_key_name
 
   connection {
@@ -144,11 +94,4 @@ data "aws_ami" "aws-linux" {
     name   = "virtualization-type"
     values = ["hvm"]
   }
-}
-
-# //////////////////////////////
-# OUTPUT
-# //////////////////////////////
-output "instance-dns" {
-  value = aws_instance.nodejs1.public_dns
 }
