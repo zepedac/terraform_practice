@@ -15,17 +15,18 @@ provider "aws" {
 
 # VPC
 resource "aws_vpc" "terraform_vpc" {
-  cidr_block = var.vpc_cidr
+  cidr_block           = var.vpc_cidr
   enable_dns_hostnames = "true"
 }
 
 # SUBNET
 resource "aws_subnet" "terraform_subnet" {
-  cidr_block = var.subnet1_cidr
-  vpc_id = aws_vpc.terraform_vpc.id
+  cidr_block              = var.subnet1_cidr
+  vpc_id                  = aws_vpc.terraform_vpc.id
   map_public_ip_on_launch = "true"
-  availability_zone = data.aws_availability_zones.available.names[1]
+  availability_zone       = data.aws_availability_zones.available.names[1]
 }
+
 
 # INTERNET_GATEWAY
 resource "aws_internet_gateway" "terraform_gateway" {
@@ -42,7 +43,7 @@ resource "aws_route_table" "terraform_route_table" {
   }
 }
 
-resource "aws_route_table_association" "terraform_route-subnet" {
+resource "aws_route_table_association" "terraform_route_subnet" {
   subnet_id = aws_subnet.terraform_subnet.id
   route_table_id = aws_route_table.terraform_route_table.id
 }
@@ -56,7 +57,7 @@ resource "aws_instance" "terraform_instance" {
   ami                    = data.aws_ami.aws-linux.id
   instance_type          = "t2.micro"
   subnet_id              = aws_subnet.terraform_subnet.id
-  vpc_security_group_ids = [aws_security_group.terraform-security-instance.id]
+  vpc_security_group_ids = [aws_security_group.terraform_security_instance.id]
   tags                   = {Environment = var.environment_list[count.index]}
   key_name               = var.ssh_key_name
 
@@ -65,6 +66,24 @@ resource "aws_instance" "terraform_instance" {
     host        = self.public_ip
     user        = "ec2-user"
     private_key = file(var.private_key_path)
+  }
+}
+
+
+// Load Balancer 
+
+resource "aws_elb" "terraform_instance" {
+  name            = "terraform-elb"
+  instances       = aws_instance.terraform_instance.*.id
+  subnets         = aws_subnet.terraform_subnet.*.id
+  security_groups = [aws_security_group.terraform_security_instance.id]
+ 
+
+  listener {
+    instance_port     = 80
+    instance_protocol = "http"
+    lb_port           = 80
+    lb_protocol       = "http"
   }
 }
 
